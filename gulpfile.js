@@ -12,6 +12,7 @@ var jshint       = require('gulp-jshint');
 var lazypipe     = require('lazypipe');
 var less         = require('gulp-less');
 var merge        = require('merge-stream');
+var modernizr    = require('gulp-modernizr');
 var cssNano      = require('gulp-cssnano');
 var plumber      = require('gulp-plumber');
 var rev          = require('gulp-rev');
@@ -127,7 +128,7 @@ var cssTasks = function(filename) {
 var jsTasks = function(filename) {
   return lazypipe()
     .pipe(function() {
-      return gulpif(enabled.maps, sourcemaps.init());
+      return gulpif(enabled.maps && 'modernizr.js' !== filename, sourcemaps.init());
     })
     .pipe(concat, filename)
     .pipe(uglify, {
@@ -139,7 +140,7 @@ var jsTasks = function(filename) {
       return gulpif(enabled.rev, rev());
     })
     .pipe(function() {
-      return gulpif(enabled.maps, sourcemaps.write('.', {
+      return gulpif(enabled.maps && 'modernizr.js' !== filename, sourcemaps.write('.', {
         sourceRoot: 'assets/scripts/'
       }));
     })();
@@ -198,6 +199,15 @@ gulp.task('scripts', ['jshint'], function() {
     .pipe(writeToManifest('scripts'));
 });
 
+// ### Build Modernizr
+// `gulp modernizr` - Detects necessary Modernizr tests and runs build
+gulp.task('modernizr', function() {
+  return gulp.src(path.dist + '**/*.{js,css,scss}')
+    .pipe(modernizr())
+    .pipe(jsTasks('modernizr.js'))
+    .pipe(writeToManifest('scripts'));
+});
+
 // ### Fonts
 // `gulp fonts` - Grabs all the fonts and outputs them in a flattened directory
 // structure. See: https://github.com/armed/gulp-flatten
@@ -252,7 +262,9 @@ gulp.task('watch', function() {
     }
   });
   gulp.watch([path.source + 'styles/**/*'], ['styles']);
-  gulp.watch([path.source + 'scripts/**/*'], ['jshint', 'scripts']);
+  gulp.watch([path.source + 'scripts/**/*'], function() {
+    runSequence('scripts', 'modernizr');
+  });
   gulp.watch([path.source + 'fonts/**/*'], ['fonts']);
   gulp.watch([path.source + 'images/**/*'], ['images']);
   gulp.watch(['bower.json', 'assets/manifest.json'], ['build']);
@@ -264,6 +276,7 @@ gulp.task('watch', function() {
 gulp.task('build', function(callback) {
   runSequence('styles',
               'scripts',
+              'modernizr',
               ['fonts', 'images'],
               callback);
 });
